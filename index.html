@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Name Picker</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    overflow: hidden;
+}
+
+h1 {
+    color: #fff;
+    font-size: 2rem;
+    margin-bottom: 2rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+}
+
+.wheel-area {
+    position: relative;
+    width: 520px;
+    height: 520px;
+}
+
+.pointer {
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    width: 0;
+    height: 0;
+    border-left: 16px solid transparent;
+    border-right: 16px solid transparent;
+    border-top: 34px solid #fff;
+    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.5));
+}
+
+.spin-container {
+    width: 520px;
+    height: 520px;
+    position: relative;
+    transition: transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+}
+
+canvas { display: block; }
+
+.photo-bubble {
+    position: absolute;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid rgba(255,255,255,0.9);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transform: translate(-50%, -50%);
+}
+
+.photo-bubble img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.photo-bubble .initials {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #555;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.spin-btn {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    width: 82px;
+    height: 82px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(102,126,234,0.5);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.spin-btn:hover:not(:disabled) {
+    transform: translate(-50%, -50%) scale(1.08);
+    box-shadow: 0 6px 30px rgba(102,126,234,0.7);
+}
+
+.spin-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.winner-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(5px);
+}
+
+.winner-overlay.active { display: flex; }
+
+.winner-card {
+    background: #fff;
+    border-radius: 24px;
+    padding: 3rem 4rem;
+    text-align: center;
+    box-shadow: 0 25px 80px rgba(0,0,0,0.3);
+    animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes popIn {
+    from { transform: scale(0.4); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.winner-card .winner-photo {
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 1.2rem;
+    border: 4px solid #667eea;
+    box-shadow: 0 4px 20px rgba(102,126,234,0.3);
+}
+
+.winner-card .winner-initials {
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    margin: 0 auto 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #667eea;
+    color: #fff;
+    font-size: 48px;
+    font-weight: 700;
+    border: 4px solid #667eea;
+}
+
+.winner-card h2 {
+    font-size: 1.8rem;
+    color: #1a1a2e;
+    margin-bottom: 0.3rem;
+}
+
+.winner-card p {
+    color: #888;
+    margin-bottom: 1.8rem;
+    font-size: 1.1rem;
+}
+
+.winner-card button {
+    padding: 0.8rem 2.5rem;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.winner-card button:hover { transform: scale(1.05); }
+
+#confettiCanvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 200;
+}
+</style>
+</head>
+<body>
+
+<h1>Spin the Wheel</h1>
+
+<div class="wheel-area">
+    <div class="pointer"></div>
+    <div class="spin-container" id="spinContainer">
+        <canvas id="wheelCanvas" width="520" height="520"></canvas>
+    </div>
+    <button class="spin-btn" id="spinBtn">SPIN</button>
+</div>
+
+<div class="winner-overlay" id="winnerOverlay">
+    <div class="winner-card">
+        <img class="winner-photo" id="winnerPhoto" src="" alt="">
+        <h2 id="winnerName"></h2>
+        <p>has been chosen!</p>
+        <button id="againBtn">Spin Again</button>
+    </div>
+</div>
+
+<canvas id="confettiCanvas"></canvas>
+
+<script>
+const people = [
+    { name: "Sinead", full: "Sinead McGowan", photo: "https://avatars.slack-edge.com/2023-06-21/5471572969073_01f7924f1a26908caeff_original.jpg" },
+    { name: "Sinesipho", full: "Sinesipho Mpange", photo: "https://avatars.slack-edge.com/2024-10-22/7918860242628_9ad2db90d5a8747c110c_original.jpg" },
+    { name: "Carol", full: "Carol DeCoene", photo: "https://avatars.slack-edge.com/2025-11-10/9885036748738_c172ed7c6a65aade13c9_original.png" },
+    { name: "Rigby", full: "Rigby Crawford", photo: "https://avatars.slack-edge.com/2025-01-21/8325290224949_1710f69d8ec99d59edc7_original.jpg" },
+    { name: "Claire", full: "Claire Lui", photo: "https://avatars.slack-edge.com/2025-12-16/10145088080257_42391f33bcca9cbacfcb_original.jpg" },
+    { name: "Maya", full: "Maya Troutman", photo: "https://avatars.slack-edge.com/2026-02-17/10534451872580_6e811e915e3379dbec0a_original.png" },
+    { name: "Lucie", full: "Lucie Tomkova", photo: "https://avatars.slack-edge.com/2022-05-16/3529693311986_b16dd87418608078fa29_original.jpg" }
+];
+
+const N = people.length;
+const segDeg = 360 / N;
+const segRad = (2 * Math.PI) / N;
+
+const colors = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+    '#DDA0DD', '#F0B27A'
+];
+
+const canvas = document.getElementById('wheelCanvas');
+const ctx = canvas.getContext('2d');
+const cx = canvas.width / 2;
+const cy = canvas.height / 2;
+const radius = 250;
+
+function drawWheel() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius + 3, 0, 2 * Math.PI);
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.fill();
+    ctx.restore();
+
+    for (let i = 0; i < N; i++) {
+        const startAngle = i * segRad - Math.PI / 2;
+        const endAngle = (i + 1) * segRad - Math.PI / 2;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, radius, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fillStyle = colors[i];
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(startAngle + segRad / 2);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(people[i].name, radius - 52, 5);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+    }
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, 44, 0, 2 * Math.PI);
+    ctx.fillStyle = '#24243e';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+}
+
+function addPhotoBubbles() {
+    const container = document.getElementById('spinContainer');
+    for (let i = 0; i < N; i++) {
+        const angle = i * segRad - Math.PI / 2 + segRad / 2;
+        const r = radius - 28;
+        const x = cx + r * Math.cos(angle);
+        const y = cy + r * Math.sin(angle);
+
+        const bubble = document.createElement('div');
+        bubble.className = 'photo-bubble';
+        bubble.style.left = x + 'px';
+        bubble.style.top = y + 'px';
+
+        const img = document.createElement('img');
+        img.src = people[i].photo;
+        img.alt = people[i].name;
+        img.referrerPolicy = 'no-referrer';
+        img.onerror = function () {
+            this.style.display = 'none';
+            const init = document.createElement('div');
+            init.className = 'initials';
+            init.textContent = people[i].name[0];
+            bubble.appendChild(init);
+        };
+        bubble.appendChild(img);
+        container.appendChild(bubble);
+    }
+}
+
+drawWheel();
+addPhotoBubbles();
+
+const spinContainer = document.getElementById('spinContainer');
+const spinBtn = document.getElementById('spinBtn');
+const winnerOverlay = document.getElementById('winnerOverlay');
+const winnerPhoto = document.getElementById('winnerPhoto');
+const winnerName = document.getElementById('winnerName');
+const againBtn = document.getElementById('againBtn');
+
+let currentRotation = 0;
+let spinning = false;
+
+spinBtn.addEventListener('click', () => {
+    if (spinning) return;
+    spinning = true;
+    spinBtn.disabled = true;
+
+    const additional = 360 * (5 + Math.floor(Math.random() * 4)) + Math.random() * 360;
+    currentRotation += additional;
+    spinContainer.style.transform = `rotate(${currentRotation}deg)`;
+
+    const finalAngle = ((currentRotation % 360) + 360) % 360;
+    const pointerAngle = ((360 - finalAngle) % 360 + 360) % 360;
+    const winnerIndex = Math.floor(pointerAngle / segDeg) % N;
+
+    setTimeout(() => {
+        spinning = false;
+        spinBtn.disabled = false;
+        showWinner(winnerIndex);
+    }, 5300);
+});
+
+function showWinner(index) {
+    const p = people[index];
+    winnerPhoto.src = p.photo;
+    winnerPhoto.referrerPolicy = 'no-referrer';
+    winnerPhoto.onerror = function () {
+        this.style.display = 'none';
+        let el = document.querySelector('.winner-card .winner-initials');
+        if (!el) {
+            el = document.createElement('div');
+            el.className = 'winner-initials';
+            this.parentNode.insertBefore(el, this);
+        }
+        el.textContent = p.name[0];
+        el.style.display = 'flex';
+    };
+    winnerPhoto.onload = function () {
+        this.style.display = '';
+        const el = document.querySelector('.winner-card .winner-initials');
+        if (el) el.style.display = 'none';
+    };
+    winnerName.textContent = p.full;
+    winnerOverlay.classList.add('active');
+    launchConfetti();
+}
+
+againBtn.addEventListener('click', () => {
+    winnerOverlay.classList.remove('active');
+});
+
+winnerOverlay.addEventListener('click', (e) => {
+    if (e.target === winnerOverlay) winnerOverlay.classList.remove('active');
+});
+
+function launchConfetti() {
+    const cc = document.getElementById('confettiCanvas');
+    cc.width = window.innerWidth;
+    cc.height = window.innerHeight;
+    const cctx = cc.getContext('2d');
+    const confColors = ['#FF6B6B','#4ECDC4','#45B7D1','#FFEAA7','#DDA0DD','#82E0AA','#F0B27A','#667eea','#764ba2'];
+
+    const particles = [];
+    for (let i = 0; i < 180; i++) {
+        particles.push({
+            x: cc.width / 2 + (Math.random() - 0.5) * 400,
+            y: cc.height / 2 - Math.random() * 200,
+            w: Math.random() * 10 + 4,
+            h: Math.random() * 6 + 2,
+            color: confColors[Math.floor(Math.random() * confColors.length)],
+            vy: Math.random() * -8 - 2,
+            vx: Math.random() * 8 - 4,
+            gravity: 0.12,
+            rotation: Math.random() * 360,
+            rv: Math.random() * 12 - 6,
+            opacity: 1
+        });
+    }
+
+    let frame = 0;
+    function animate() {
+        cctx.clearRect(0, 0, cc.width, cc.height);
+        let alive = false;
+        for (const p of particles) {
+            if (p.opacity <= 0) continue;
+            alive = true;
+            p.vy += p.gravity;
+            p.y += p.vy;
+            p.x += p.vx;
+            p.vx *= 0.99;
+            p.rotation += p.rv;
+            if (p.y > cc.height + 20) { p.opacity -= 0.05; }
+            if (frame > 200) p.opacity -= 0.02;
+
+            cctx.save();
+            cctx.translate(p.x, p.y);
+            cctx.rotate(p.rotation * Math.PI / 180);
+            cctx.globalAlpha = Math.max(0, p.opacity);
+            cctx.fillStyle = p.color;
+            cctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            cctx.restore();
+        }
+        frame++;
+        if (alive && frame < 350) requestAnimationFrame(animate);
+        else cctx.clearRect(0, 0, cc.width, cc.height);
+    }
+    animate();
+}
+</script>
+</body>
+</html>
